@@ -3,6 +3,12 @@
 Versions follow SemVer. Entries come from the Markdown changesets in `.changeset/`.
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the local release workflow.
 
+## 0.3.0 - 2026-11-14
+
+### Added
+
+- Log every step of a run in order (state, IKEA's answer with the age of its figures, each change, the ntfy message id, the saved state) and end each run with a key=value summary line that includes duration, CPU time and peak memory; errors now go to stdout as error: lines.
+
 ## 0.2.0 - 2026-11-14
 
 ### Added
