@@ -206,7 +206,7 @@ fn writeBody(w: *std.Io.Writer, kind: Kind, outcome: Outcome) std.Io.Writer.Erro
 }
 
 pub fn failureMessage(arena: std.mem.Allocator, failures: u32, err_name: []const u8) error{OutOfMemory}!Message {
-    const text = "Die letzten {d} Abfragen sind fehlgeschlagen ({s}). Details im Log von ikea-checker.";
+    const text = "Die letzten {d} Abfragen sind fehlgeschlagen ({s}). Details im Log von lagerkoll.";
     return .{
         .title = "IKEA-Prüfung gestört",
         .body = try arena.print(text, .{ failures, err_name }),
@@ -439,7 +439,7 @@ test "failure message names the count and the error" {
     defer arena_state.deinit();
     const msg = try failureMessage(arena_state.allocator(), 3, "HttpStatus");
     try testing.expectEqualStrings(
-        "Die letzten 3 Abfragen sind fehlgeschlagen (HttpStatus). Details im Log von ikea-checker.",
+        "Die letzten 3 Abfragen sind fehlgeschlagen (HttpStatus). Details im Log von lagerkoll.",
         msg.body,
     );
 }

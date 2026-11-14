@@ -6,7 +6,7 @@ ZIG := mise x -- zig
 LIST ?=
 # Compared with, never written by --dry-run. Without the file the run counts as the first.
 STATE ?= zig-out/no-state.json
-# Where the image goes, without a tag, e.g. registry.example.org/ikea-checker.
+# Where the image goes, without a tag, e.g. registry.example.org/lagerkoll.
 IMAGE_REPOSITORY ?=
 # CA bundle and crane for the image, from one pinned nixpkgs revision.
 NIXPKGS ?= github:NixOS/nixpkgs/2efa67fd26b6df417c33e4603185c701f260dd83
@@ -15,8 +15,8 @@ CRANE = $$(nix build --no-link --print-out-paths $(NIXPKGS)\#crane)/bin/crane
 
 help:
 	@printf '%s\n' 'make verify            changeset tests and status, build, fmt, tests (Debug, ReleaseSafe), ziglint'
-	@printf '%s\n' 'make build-release     zig-out/bin/ikea-checker with -Doptimize=ReleaseSafe'
-	@printf '%s\n' 'make image-build       IMAGE_REPOSITORY=…: zig-out/image/ikea-checker-VERSION.tar (linux/amd64), pushes nothing'
+	@printf '%s\n' 'make build-release     zig-out/bin/lagerkoll with -Doptimize=ReleaseSafe'
+	@printf '%s\n' 'make image-build       IMAGE_REPOSITORY=…: zig-out/image/lagerkoll-VERSION.tar (linux/amd64), pushes nothing'
 	@printf '%s\n' 'make image-publish     IMAGE_REPOSITORY=…: push the released version, print the digest'
 	@printf '%s\n' 'make dry-run           LIST=…: ask IKEA once for LIST against STATE; sends nothing, writes nothing'
 	@printf '%s\n' 'make changeset         add a release note or an intentional empty changeset'
@@ -42,12 +42,12 @@ image-test:
 	$(PYTHON) -B scripts/test_image.py
 
 image-build:
-	@test -n "$(IMAGE_REPOSITORY)" || { echo 'set IMAGE_REPOSITORY, e.g. registry.example.org/ikea-checker' >&2; exit 2; }
+	@test -n "$(IMAGE_REPOSITORY)" || { echo 'set IMAGE_REPOSITORY, e.g. registry.example.org/lagerkoll' >&2; exit 2; }
 	$(PYTHON) -B scripts/image.py build --repository "$(IMAGE_REPOSITORY)" --ca-bundle "$(CA_BUNDLE)"
 
 # Only a released, committed version on main; never overwrites an existing tag.
 image-publish:
-	@test -n "$(IMAGE_REPOSITORY)" || { echo 'set IMAGE_REPOSITORY, e.g. registry.example.org/ikea-checker' >&2; exit 2; }
+	@test -n "$(IMAGE_REPOSITORY)" || { echo 'set IMAGE_REPOSITORY, e.g. registry.example.org/lagerkoll' >&2; exit 2; }
 	$(PYTHON) -B scripts/image.py publish --repository "$(IMAGE_REPOSITORY)" --ca-bundle "$(CA_BUNDLE)" --crane "$(CRANE)"
 
 build-release:
@@ -56,7 +56,7 @@ build-release:
 # Live request to IKEA's API; no push, no state written.
 dry-run: build
 	@test -n "$(LIST)" || { echo 'set LIST to your list, e.g. make dry-run LIST=config.json (format: config.example.json)' >&2; exit 2; }
-	./zig-out/bin/ikea-checker check --config $(LIST) --state $(STATE) --dry-run
+	./zig-out/bin/lagerkoll check --config $(LIST) --state $(STATE) --dry-run
 
 changeset:
 	$(PYTHON) -B scripts/changeset.py add

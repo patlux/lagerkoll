@@ -1,9 +1,9 @@
 .{
-    .name = .ikea_checker,
+    .name = .lagerkoll,
     .version = "0.1.0",
     .dependencies = .{},
     .minimum_zig_version = "0.17.1",
-    .fingerprint = 0x89b0ea9f76ffb2d0,
+    .fingerprint = 0xf7c56cd107cf4b2b,
     .paths = .{
         "build.zig",
         "build.zig.zon",

@@ -127,7 +127,7 @@ test "loadAuthorization refuses a file others can read" {
     try tmp.dir.setFilePermissions(io, "private", .fromMode(0o600), .{});
     try testing.expectEqualStrings("Basic dTpw", try loadAuthorization(arena, io, private_path));
 
-    try testing.expectError(error.FileNotFound, loadAuthorization(arena, io, "/nonexistent/ikea-checker-credentials"));
+    try testing.expectError(error.FileNotFound, loadAuthorization(arena, io, "/nonexistent/lagerkoll-credentials"));
 }
 
 test "body is ntfy's JSON publish format" {
@@ -212,7 +212,7 @@ test "publish posts the JSON with the credentials to the server root" {
         .body = "Jetzt da",
         .tag = "white_check_mark",
     };
-    const result = publish(&client, arena, url, "Bearer tk_test", "ikea-checker/test", "ikea", msg, &status);
+    const result = publish(&client, arena, url, "Bearer tk_test", "lagerkoll/test", "ikea", msg, &status);
     thread.join();
     try result;
 
@@ -242,7 +242,7 @@ test "publish reports a refusal as HttpStatus" {
     defer client.deinit();
     var status: u16 = 0;
     const msg: check.Message = .{ .title = "T", .body = "B", .tag = "x" };
-    const result = publish(&client, arena, url, "Basic dTpw", "ikea-checker/test", "ikea", msg, &status);
+    const result = publish(&client, arena, url, "Basic dTpw", "lagerkoll/test", "ikea", msg, &status);
     thread.join();
     try testing.expectError(error.HttpStatus, result);
     try testing.expectEqual(@as(u16, 403), status);

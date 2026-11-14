@@ -10,4 +10,4 @@ The program links the Zig standard library, Copyright (c) Zig contributors, unde
 `src/testdata/availability.json` is a trimmed answer of IKEA's public availability API (stock
 figures of a few articles in one store), kept as a test fixture.
 
-ikea-checker itself is licensed under the MIT license in `LICENSE`.
+lagerkoll itself is licensed under the MIT license in `LICENSE`.

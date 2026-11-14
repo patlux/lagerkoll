@@ -29,7 +29,7 @@ def manifest(version: str = "1.1.7", extra: str = "") -> str:
     """A build.zig.zon in the shape of a project manifest, with a dependency carrying no version."""
     return (
         ".{\n"
-        "    .name = .ikea_checker,\n"
+        "    .name = .lagerkoll,\n"
         f'    .version = "{version}",\n'
         "    .dependencies = .{\n"
         "        .nanoui = .{\n"
@@ -109,7 +109,7 @@ class RepoTests(unittest.TestCase):
         self._env = patch.dict(os.environ, env, clear=True)
         self._env.start()
         self.addCleanup(self._env.stop)
-        self._tmp = tempfile.TemporaryDirectory(prefix="ikea-checker-changeset-test-")
+        self._tmp = tempfile.TemporaryDirectory(prefix="lagerkoll-changeset-test-")
         self.addCleanup(self._tmp.cleanup)
         self.root = Path(self._tmp.name)
         self.git("init", "-q", "-b", "main")

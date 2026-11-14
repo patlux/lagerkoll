@@ -5,7 +5,7 @@
   "ntfy": {
     "url": "https://ntfy.example.org",
     "topic": "ikea",
-    "credentials_file": "/run/secrets/ikea-checker-ntfy"
+    "credentials_file": "/path/to/ntfy-credentials"
   },
   "items": [
     { "item_no": "123.456.78", "name": "Beispielartikel", "quantity": 2 },

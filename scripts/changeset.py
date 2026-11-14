@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Small, dependency-free changesets for ikea-checker (Python 3.11+).
+"""Small, dependency-free changesets for lagerkoll (Python 3.11+).
 
 Markdown notes, a commit hook, and a local SemVer release command.
 The `.version` line of build.zig.zon is the single product version.

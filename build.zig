@@ -11,7 +11,7 @@ pub fn build(b: *std.Build) void {
     const options = b.addOptions();
     options.addOption([]const u8, "version", version);
 
-    const exe = b.addExecutable(.{ .name = "ikea-checker", .root_module = b.createModule(.{
+    const exe = b.addExecutable(.{ .name = "lagerkoll", .root_module = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
@@ -21,7 +21,7 @@ pub fn build(b: *std.Build) void {
 
     const run = b.addRunArtifact(exe);
     run.addPassthruArgs();
-    b.step("run", "Run ikea-checker (zig build run -- check --config ... --dry-run)").dependOn(&run.step);
+    b.step("run", "Run lagerkoll (zig build run -- check --config ... --dry-run)").dependOn(&run.step);
 
     // Fixed fixtures, no network.
     const tests = b.addTest(.{ .root_module = b.createModule(.{

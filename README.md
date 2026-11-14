@@ -1,152 +1,247 @@
-# ikea-checker
+# lagerkoll
 
-Watches whether the articles of a shopping list are in stock in one IKEA store, in the needed
-quantity, and pushes changes to the phone through ntfy. Zig 0.17.1, no dependencies outside the
-standard library.
+**Get a push on your phone when the IKEA articles on your list are in stock at your store.**
 
-One call is one check. A scheduler (cron, a launchd agent, a systemd timer, a periodic Nomad job)
-calls it regularly; the program itself has no loop, no listener and no daemon. Store, articles and
-ntfy server come from a configuration file you keep outside the repository.
+You have a shopping list for a wardrobe, and two of the parts are sold out at your IKEA. lagerkoll
+checks the store's stock for the whole list on a schedule. It sends a message through
+[ntfy](https://ntfy.sh) when a missing article reaches the quantity you need, or when IKEA
+announces a delivery for it. A small static CLI in Zig, with no dependencies outside the standard
+library.
 
-Not affiliated with IKEA. It reads the same unofficial API the product pages of ikea.com use; IKEA
-can change or close it at any time. Keep the interval moderate (every 30 minutes is plenty: IKEA
-updates the figures a few times a day). The pushes are in German.
+```text
+IKEA Musterstadt: Flisberget Tür verfügbar
 
-## What it pushes
+Jetzt da:
+- Flisberget Tür: 72 Stück (du brauchst 9)
 
-| When | Push |
-| --- | --- |
-| First successful run (no state yet) | `IKEA <store_name>: Überwachung aktiv`, how many articles are there and what is missing |
-| An article reaches the needed quantity | `IKEA <store_name>: <name> verfügbar` (or `N Artikel verfügbar`), with the quantity |
-| IKEA announces a delivery for a missing article for the first time | `IKEA <store_name>: Nachlieferung angekündigt`, with the date range |
-| The third failed request in a row | `IKEA-Prüfung gestört`, once |
-| The first good request after that warning | `IKEA-Prüfung läuft wieder` |
-
-Every push about stock ends with what is still missing (`Noch offen: …`) or with
-`Alles auf der Liste ist verfügbar.` Nothing else is pushed: the same stock again, an article that
-drops below the needed quantity, or a delivery date that moves bring no push. An article that drops
-below and comes back is announced again.
-
-If the answer lacks an article (not in the store's range, missing from the answer), the run keeps
-what the last run knew about it, so a gap in an answer never announces an article that never left.
-
-## Data source
-
-`GET https://api.ingka.ikea.com/cia/availabilities/sto/<store>?itemNos=<…>&expand=Restocks`
-with the header `X-Client-Id` of the IKEA website and `Accept: application/json;version=2`.
-This is the API the product pages of ikea.com use; IKEA does not document it. What the program
-reads:
-
-- `buyingOption.cashCarry.availability.quantity`: pieces in the store;
-- `buyingOption.cashCarry.range.inRange`: whether the store sells the article at all;
-- `buyingOption.cashCarry.availability.restocks[]`: announced deliveries (`earliestDate`,
-  `latestDate`); without an entry IKEA has no delivery planned in its system, which does not
-  prove that none comes.
-
-The stock figures are updated several times a day; the answer has its own `updateDateTime`.
-
-## Commands
-
-```sh
-mise install                       # Zig 0.17.1 and ziglint from mise.toml / mise.lock
-make verify                        # changesets, build, zig fmt, tests (Debug and ReleaseSafe), ziglint
-make dry-run LIST=config.json      # one live request for your list, sends nothing, writes nothing
-make build-release                 # zig-out/bin/ikea-checker, ReleaseSafe
-
-zig-out/bin/ikea-checker check --config config.json --state state.json [--dry-run]
-zig-out/bin/ikea-checker --version
+Noch offen:
+- Översidan 46cm: 0/4
 ```
 
-`--dry-run` prints the report and the push the run would send, sends nothing and writes no state;
-it needs no ntfy section and no credentials. Exit codes: `0` checked (and pushed if needed), `1`
-failed (config, state, IKEA or ntfy; the reason goes to stderr), `2` usage.
+*lagerkoll* is Swedish for “stock check” (*lager* = stock, *koll* = check).
 
-## Configuration
+> Not affiliated with IKEA. lagerkoll reads the same unofficial availability API that the product
+> pages of ikea.com use. IKEA can change or close it at any time. Keep the interval moderate:
+> IKEA updates the figures only a few times a day, so every 30 minutes is plenty.
+> The push texts are in German.
 
-A JSON file per list; start from [`config.example.json`](config.example.json). Files named
-`/*.json` (except the example), `lists/` and `*.state.json` are ignored by Git, so your list,
-state and credentials stay local.
+## Quick start
 
-| Field | Meaning |
-| --- | --- |
-| `store_id` | IKEA's store number (see below) |
-| `store_name` | Short name for the pushes, e.g. the town |
-| `market` | Optional, default `de/de`: country/language of ikea.com for the link in a push (`at/de`, `gb/en`, …) |
-| `items[]` | `item_no` (`306.300.88` or `30630088`), `name` (for the pushes), `quantity` (needed) |
-| `ntfy.url` | `https://` server root (optional for `--dry-run`) |
-| `ntfy.topic` | Topic for the pushes |
-| `ntfy.credentials_file` | File with `user:password` or an access token `tk_…`; must not be readable by group or others |
-| `client_id`, `api_url` | Optional; default to the website's client id and `https://api.ingka.ikea.com` |
+**1. Build.** You need [Zig 0.17.1](https://ziglang.org/download/). With [mise](https://mise.jdx.dev),
+`mise install` installs the pinned toolchain.
 
-### Finding the store number
+```sh
+zig build -Doptimize=ReleaseSafe          # → zig-out/bin/lagerkoll
+```
 
-ikea.com lists the stores of a country with their numbers (`id`):
+**2. Find your store number.** ikea.com lists the stores of a country with their numbers (`id`):
 
 ```sh
 curl -s https://www.ikea.com/de/de/meta-data/informera/stores-suggested-detailed.json \
   | python3 -c 'import json,sys; [print(s["id"], s["name"]) for s in json.load(sys.stdin)]'
 ```
 
-Replace `de/de` with your country/language. The article number is the eight-digit number on the
-price tag or the product page (`123.456.78`).
+Replace `de/de` with your country and language, e.g. `at/de`, `ch/de`, `gb/en`, `se/sv`.
 
-## State
+**3. Write your list.** Copy [`config.example.json`](config.example.json) to `config.json`. Fill in
+the store, and for each article the eight-digit number from the price tag or the product page
+(`123.456.78`), a name for the pushes and how many pieces you need:
 
-The state file (JSON, mode 0600, replaced atomically) keeps per article whether it was available
-and whether a delivery was announced, the count of failed runs in a row and whether the warning
-went out. If a push fails, the run keeps the old article states, so the next run finds the same
-change and tries again. A state file that does not parse stops the run with an error instead of
-being overwritten.
+```json
+{
+  "store_id": "123",
+  "store_name": "Musterstadt",
+  "items": [
+    { "item_no": "123.456.78", "name": "Flisberget Tür", "quantity": 9 },
+    { "item_no": "876.543.21", "name": "Översidan 46cm", "quantity": 4 }
+  ]
+}
+```
 
-## Architecture
+**4. Try it.** A dry run asks IKEA once and shows what it would push. It sends nothing and writes
+nothing:
+
+```sh
+zig-out/bin/lagerkoll check --config config.json --state state.json --dry-run
+```
+
+```text
+2026-11-14T19:08:31Z lagerkoll 0.1.0 --dry-run
+IKEA Musterstadt (123): 1 von 2 verfügbar
+  fehlt  12345678        0/9  Flisberget Tür  (Nachlieferung 19.11.–26.11.)
+  ok     87654321       45/4  Översidan 46cm
+
+Push (nicht gesendet): IKEA Musterstadt: Überwachung aktiv
+…
+```
+
+**5. Connect ntfy and run it on a schedule.** Add the `ntfy` section (see
+[Configuration](#configuration)), subscribe to the topic in the ntfy app, and let a scheduler
+call `lagerkoll check` without `--dry-run` (see [Running it regularly](#running-it-regularly)).
+
+## What it pushes
+
+| When | Push |
+| --- | --- |
+| First successful run (no state yet) | `IKEA <store>: Überwachung aktiv`: how many articles are there, what is missing |
+| An article reaches the needed quantity | `IKEA <store>: <article> verfügbar` (or `N Artikel verfügbar`), with the quantity |
+| IKEA announces a delivery for a missing article for the first time | `IKEA <store>: Nachlieferung angekündigt`, with the date range |
+| The third failed check in a row | `IKEA-Prüfung gestört`, once |
+| The first good check after that warning | `IKEA-Prüfung läuft wieder` |
+
+Every push about stock ends with what is still missing (`Noch offen: …`), or with
+`Alles auf der Liste ist verfügbar.` If exactly one article became available, tapping the push opens
+the search for it on ikea.com.
+
+Nothing else is pushed. The same stock again, an article that drops below the needed quantity, or
+a delivery date that moves bring no push. An article that drops below and comes back is announced
+again. If IKEA's answer lacks an article, the run keeps what it knew before, so a gap in one
+answer never announces an article that never left.
+
+## Configuration
+
+One JSON file per list. Git ignores `/*.json` (except the example), `lists/` and `*.state.json`,
+so your list, your state and your credentials stay local.
+
+| Field | Meaning |
+| --- | --- |
+| `store_id` | IKEA's store number ([Quick start](#quick-start), step 2) |
+| `store_name` | Short name for the pushes, e.g. the town |
+| `items[]` | `item_no` (`123.456.78` or `12345678`), `name` (for the pushes), `quantity` (pieces needed); up to 50 |
+| `market` | Optional, default `de/de`: ikea.com country/language for the link in a push |
+| `ntfy.url` | `https://` server root, e.g. `https://ntfy.sh` or your own server |
+| `ntfy.topic` | Topic for the pushes |
+| `ntfy.credentials_file` | Path to a file that holds `user:password` or an ntfy access token `tk_…` |
+| `client_id`, `api_url` | Optional; default to the website's client id and `https://api.ingka.ikea.com` |
+
+The `ntfy` section is needed for real runs only. lagerkoll refuses a credentials file that group
+or others may read (`chmod 600`). It sends the credentials only to the configured server and never
+follows a redirect with them.
+
+**State.** The state file holds, per article, whether it was available and whether a delivery was
+announced. It also counts the failed checks in a row. It is written atomically with mode 0600.
+If a push fails, the run keeps the old states, so the next run finds the same change and tries
+again. A state file that does not parse stops the run instead of being overwritten.
+
+**Exit codes.** `0` checked (and pushed if needed), `1` failed (config, state, IKEA or ntfy; the
+reason goes to stderr), `2` usage.
+
+## Running it regularly
+
+lagerkoll has no loop and no daemon: every call is one check. Keep the state file on persistent
+storage.
+
+**cron**
+
+```sh
+*/30 7-21 * * * /usr/local/bin/lagerkoll check --config /etc/lagerkoll/config.json --state /var/lib/lagerkoll/state.json
+```
+
+**systemd timer**
+
+```ini
+# /etc/systemd/system/lagerkoll.service
+[Service]
+Type=oneshot
+DynamicUser=yes
+StateDirectory=lagerkoll
+LoadCredential=ntfy:/etc/lagerkoll/ntfy
+ExecStart=/usr/local/bin/lagerkoll check --config /etc/lagerkoll/config.json --state /var/lib/lagerkoll/state.json
+
+# /etc/systemd/system/lagerkoll.timer
+[Timer]
+OnCalendar=*-*-* 07..21:00/30
+[Install]
+WantedBy=timers.target
+```
+
+With `LoadCredential`, set `ntfy.credentials_file` to `/run/credentials/lagerkoll.service/ntfy`.
+
+**Container (Podman, Docker, Nomad, Kubernetes CronJob)**
+
+The image holds only the static binary and a CA bundle, and runs as user 65534 by default. Mount
+the config, the credentials file and a state directory. The simplest way to get the permissions
+right is to run as your own user, who owns the files (`chmod 600 ntfy-credentials`):
+
+```sh
+mkdir -p state
+podman run --rm --userns=keep-id --user "$(id -u):$(id -g)" \
+  -v ./config.json:/config.json:ro \
+  -v ./ntfy-credentials:/secrets/ntfy:ro \
+  -v ./state:/state \
+  registry.example.org/lagerkoll:0.1.0 \
+  check --config /config.json --state /state/state.json
+```
+
+With Docker, drop `--userns=keep-id`. In the config, `ntfy.credentials_file` is then
+`/secrets/ntfy`.
+
+There is no public image yet. Build it yourself (needs Nix for the pinned CA bundle and crane; no
+Docker):
+
+```sh
+make image-build   IMAGE_REPOSITORY=registry.example.org/lagerkoll   # zig-out/image/…tar, pushes nothing
+make image-publish IMAGE_REPOSITORY=registry.example.org/lagerkoll   # released version only; prints the digest
+```
+
+`scripts/image.py` writes the linux/amd64 image as a reproducible `docker save` archive: the same
+tree and CA bundle give the same bytes. `image-publish` runs only on a clean `main` whose version
+has a `CHANGELOG.md` section, and it never overwrites an existing tag.
+
+## How it works
+
+One request per run, for all articles of the list:
+
+```text
+GET https://api.ingka.ikea.com/cia/availabilities/sto/<store>?itemNos=<a>,<b>,…&expand=Restocks
+X-Client-Id: <client id of the ikea.com website>
+Accept: application/json;version=2
+```
+
+lagerkoll reads three fields per article:
+
+- `buyingOption.cashCarry.availability.quantity`: pieces in the store.
+- `buyingOption.cashCarry.range.inRange`: whether the store sells the article at all.
+- `buyingOption.cashCarry.availability.restocks[]`: announced deliveries (`earliestDate`,
+  `latestDate`). Without an entry, IKEA has no delivery planned in its system. That does not
+  prove that none comes.
+
+An article counts as available when the quantity is at least what you need. Then lagerkoll
+compares with the last run and publishes at most one message to ntfy (JSON publishing).
 
 | File | Owns |
 | --- | --- |
-| `src/main.zig` | CLI, the run: config → state → IKEA → evaluation → push → state |
+| `src/main.zig` | CLI and the run: config → state → IKEA → evaluation → push → state |
 | `src/config.zig` | Parsing and validating the list |
 | `src/ikea.zig` | Request URL, request, parsing the answer |
 | `src/check.zig` | The rules: status per article, what changed, the push text (pure, no I/O) |
 | `src/state.zig` | Loading and atomically saving the state |
-| `src/ntfy.zig` | Credentials file, JSON publishing |
+| `src/ntfy.zig` | Credentials file and publishing |
 
-The tests use fixed data (`src/testdata/availability.json` is a trimmed real answer) and a
-loopback HTTP server for the ntfy request; they make no request to IKEA or ntfy.
+### Limitations
 
-## Limitations
-
-- `std.http.Client` in Zig 0.17.1 checks host name, dates and signatures of the server's chain,
-  but not whether an issuing certificate is a CA. Someone who can intercept the connection and
-  holds any publicly trusted certificate could impersonate a server. The IKEA data is public; for
-  ntfy, prefer a server you reach over a private network.
-- `std.http.Client` 0.17.1 never sends `privileged_headers`; the credentials go in the
-  `Authorization` header with redirects switched off instead (`src/ntfy.zig`).
-- The quantity is IKEA's figure for the store, not a reservation. Whether the pieces are in the
+- The quantity is IKEA's figure for the store, not a reservation. Whether the pieces are on the
   shelf when you arrive is not part of the answer.
+- The API is not documented. The meaning of the fields comes from their names and from comparing
+  the answers with ikea.com.
+- `std.http.Client` in Zig 0.17.1 checks the host name, dates and signatures of the server's
+  certificate chain, but not whether an issuing certificate is a CA. An attacker who can intercept
+  the connection and holds any publicly trusted certificate could impersonate a server. The IKEA
+  data is public; for ntfy, prefer a server you reach over a private network.
+- `std.http.Client` 0.17.1 never sends `privileged_headers`. lagerkoll sends the credentials in
+  the ordinary `Authorization` header instead, with redirects switched off.
 
-## Running it regularly
-
-Any scheduler works; keep the state file on persistent storage and the credentials file private.
-Example crontab line:
-
-```sh
-*/30 7-21 * * * /usr/local/bin/ikea-checker check --config /etc/ikea-checker/config.json --state /var/lib/ikea-checker/state.json
-```
-
-### Container image
-
-`scripts/image.py` writes a linux/amd64 image without Docker: the static binary
-(x86_64-linux-musl, ReleaseSafe) and a CA bundle, user 65534, as a reproducible `docker save`
-archive; crane pushes it unchanged. Mount the config, the credentials file and a writable state
-directory:
+## Development
 
 ```sh
-make image-build   IMAGE_REPOSITORY=registry.example.org/ikea-checker   # zig-out/image/…tar, pushes nothing
-make image-publish IMAGE_REPOSITORY=registry.example.org/ikea-checker   # released version only; prints the digest
+make verify                    # changesets, build, zig fmt, tests (Debug and ReleaseSafe), ziglint
+make dry-run LIST=config.json  # one live request for your list
 ```
 
-`image-publish` runs only on a clean `main` whose version has a `CHANGELOG.md` section and never
-overwrites an existing tag. CA bundle and crane come from the nixpkgs revision pinned as `NIXPKGS`
-in the `Makefile` (needs Nix).
+The tests use fixed data and make no request to IKEA or ntfy.
+`src/testdata/availability.json` is a trimmed real answer; the ntfy request is tested against a
+loopback HTTP server. Every commit carries a changeset; see [CONTRIBUTING.md](CONTRIBUTING.md).
+Changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

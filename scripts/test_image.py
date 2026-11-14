@@ -19,7 +19,7 @@ sys.modules["image"] = image
 _SPEC.loader.exec_module(image)
 
 BINARY = b"\x7fELF" + b"\x00" * 60
-REPO = "registry.example.org/ikea-checker"
+REPO = "registry.example.org/lagerkoll"
 CA = b"-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n"
 
 
@@ -42,12 +42,12 @@ class ArchiveTests(unittest.TestCase):
     def test_docker_save_layout_and_config(self) -> None:
         outer = members(image.archive(BINARY, CA, "0.1.0", "abc", REPO))
         manifest = json.loads(outer["manifest.json"][1])
-        self.assertEqual(manifest[0]["RepoTags"], ["registry.example.org/ikea-checker:0.1.0"])
+        self.assertEqual(manifest[0]["RepoTags"], ["registry.example.org/lagerkoll:0.1.0"])
         config_bytes = outer[manifest[0]["Config"]][1]
         self.assertEqual(manifest[0]["Config"], hashlib.sha256(config_bytes).hexdigest() + ".json")
         config = json.loads(config_bytes)
         self.assertEqual((config["os"], config["architecture"]), ("linux", "amd64"))
-        self.assertEqual(config["config"]["Entrypoint"], ["/bin/ikea-checker"])
+        self.assertEqual(config["config"]["Entrypoint"], ["/bin/lagerkoll"])
         self.assertEqual(config["config"]["User"], "65534:65534")
         self.assertNotIn("/nix/store", json.dumps(config))
         self.assertEqual(config["config"]["Labels"]["org.opencontainers.image.revision"], "abc")
@@ -55,7 +55,7 @@ class ArchiveTests(unittest.TestCase):
         layer_bytes = outer[manifest[0]["Layers"][0]][1]
         self.assertEqual(config["rootfs"]["diff_ids"], ["sha256:" + hashlib.sha256(layer_bytes).hexdigest()])
         layer = members(layer_bytes)
-        info, data = layer["bin/ikea-checker"]
+        info, data = layer["bin/lagerkoll"]
         self.assertEqual((data, info.mode, info.uid, info.mtime), (BINARY, 0o755, 0, 0))
         info, data = layer["etc/ssl/certs/ca-certificates.crt"]
         self.assertEqual((data, info.mode), (CA, 0o644))
@@ -64,9 +64,9 @@ class ArchiveTests(unittest.TestCase):
 
 class RepositoryTests(unittest.TestCase):
     def test_accepts_registry_paths_without_tag(self) -> None:
-        for good in ("registry.example.org/ikea-checker", "localhost:5000/a/b", "ghcr.io/user/ikea-checker"):
+        for good in ("registry.example.org/lagerkoll", "localhost:5000/a/b", "ghcr.io/user/lagerkoll"):
             self.assertRegex(good, image.REPOSITORY_RE)
-        for bad in ("ikea-checker", "registry.example.org/ikea-checker:0.1.0", "https://x/y", "Reg/x", ""):
+        for bad in ("lagerkoll", "registry.example.org/lagerkoll:0.1.0", "https://x/y", "Reg/x", ""):
             self.assertNotRegex(bad, image.REPOSITORY_RE)
 
 

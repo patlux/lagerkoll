@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Build and publish the ikea-checker container image (linux/amd64) without Docker.
+"""Build and publish the lagerkoll container image (linux/amd64) without Docker.
 
-    scripts/image.py build   --repository REPO --ca-bundle FILE               zig-out/image/ikea-checker-<version>.tar
+    scripts/image.py build   --repository REPO --ca-bundle FILE               zig-out/image/lagerkoll-<version>.tar
     scripts/image.py publish --repository REPO --ca-bundle FILE --crane BIN   push it as REPO:<version>
 
-REPO is the image repository without a tag, e.g. registry.example.org/ikea-checker.
+REPO is the image repository without a tag, e.g. registry.example.org/lagerkoll.
 
-The image holds two files: the static binary (/bin/ikea-checker, x86_64-linux-musl, ReleaseSafe)
+The image holds two files: the static binary (/bin/lagerkoll, x86_64-linux-musl, ReleaseSafe)
 and a CA bundle (/etc/ssl/certs/ca-certificates.crt, where Zig's std looks on Linux). It runs as
 65534:65534. The archive is a `docker save` tarball with fixed timestamps and owners, so the same
 tree and the same CA bundle give the same digest. `crane push` uploads it unchanged.
@@ -28,7 +28,7 @@ import tarfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-NAME = "ikea-checker"
+NAME = "lagerkoll"
 REPOSITORY_RE = re.compile(r"^[a-z0-9.-]+(:[0-9]+)?(/[a-z0-9._-]+)+$")
 TARGET = "x86_64-linux-musl"
 PREFIX = ROOT / "zig-out" / "linux-amd64"

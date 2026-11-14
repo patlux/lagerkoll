@@ -1,4 +1,4 @@
-//! ikea-checker: watch the stock of a shopping list in one IKEA store and push changes
+//! lagerkoll: watch the stock of a shopping list in one IKEA store and push changes
 //! through ntfy. One run per call; a scheduler (launchd) calls it regularly.
 
 const std = @import("std");
@@ -12,11 +12,11 @@ const ntfy = @import("ntfy.zig");
 /// Failed runs in a row before one warning push.
 pub const failure_threshold = 3;
 
-const user_agent = "ikea-checker/" ++ build_options.version;
+const user_agent = "lagerkoll/" ++ build_options.version;
 
 const usage =
-    \\Usage: ikea-checker check --config FILE --state FILE [--dry-run]
-    \\       ikea-checker --version
+    \\Usage: lagerkoll check --config FILE --state FILE [--dry-run]
+    \\       lagerkoll --version
     \\
     \\check      Ask IKEA for the stock of the listed articles in one store, compare it with
     \\           the last run (the state file) and push what changed through ntfy.
@@ -77,7 +77,7 @@ pub fn main(init: std.process.Init) !u8 {
     };
     switch (cmd) {
         .version => {
-            try out.print("ikea-checker {s}\n", .{build_options.version});
+            try out.print("lagerkoll {s}\n", .{build_options.version});
             return 0;
         },
         .help => {
@@ -109,7 +109,7 @@ const Run = struct {
         const now = std.Io.Clock.real.now(r.io).toSeconds();
         // A header per run, flushed before anything goes to stderr (launchd writes both to one log).
         try writeTimestamp(r.out, now);
-        try r.out.print(" ikea-checker {s}{s}\n", .{ build_options.version, if (r.opts.dry_run) " --dry-run" else "" });
+        try r.out.print(" lagerkoll {s}{s}\n", .{ build_options.version, if (r.opts.dry_run) " --dry-run" else "" });
         try r.out.flush();
 
         const cwd = std.Io.Dir.cwd();

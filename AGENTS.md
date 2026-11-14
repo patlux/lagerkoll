@@ -1,6 +1,6 @@
 # AGENTS.md
 
-ikea-checker is a Zig 0.17.1 CLI that checks IKEA store stock for a list and pushes changes
+lagerkoll is a Zig 0.17.1 CLI that checks IKEA store stock for a list and pushes changes
 through ntfy. What it does, its commands and its layout are in `README.md`.
 
 ## Zig
