@@ -9,6 +9,7 @@ const check = @import("check.zig");
 const builtin = @import("builtin");
 const state_file = @import("state.zig");
 const ntfy = @import("ntfy.zig");
+const metrics = @import("metrics.zig");
 
 /// Failed runs in a row before one warning push.
 pub const failure_threshold = 3;
@@ -109,6 +110,7 @@ const Summary = struct {
     new_available: usize = 0,
     new_restock: usize = 0,
     failures: ?u32 = null,
+    metrics: enum { off, sent, failed, skipped } = .off,
 };
 
 const Run = struct {
@@ -119,21 +121,70 @@ const Run = struct {
     /// Everything a run reports goes here, errors as `error: …`, so the log reads in order.
     out: *std.Io.Writer,
     summary: Summary = .{},
+    // What the metrics need, filled in as the run gets there.
+    now: i64 = 0,
+    cfg: ?config.Config = null,
+    outcome: ?check.Outcome = null,
+    last_success: i64 = 0,
 
     fn run(r: *Run) !u8 {
         const started = std.Io.Clock.awake.now(r.io);
         const code = r.checkOnce() catch |err| {
             r.summary.err = @errorName(err);
-            try r.writeSummary(started);
+            try r.finish(started, 1);
             return err;
         };
-        if (code == 0) r.summary.result = .ok;
-        try r.writeSummary(started);
+        try r.finish(started, code);
         return code;
+    }
+
+    fn finish(r: *Run, started: std.Io.Timestamp, code: u8) !void {
+        if (code == 0) r.summary.result = .ok;
+        const elapsed = started.durationTo(std.Io.Clock.awake.now(r.io));
+        const duration_ms: i64 = @intCast(@divTrunc(elapsed.toNanoseconds(), std.time.ns_per_ms));
+        try r.sendMetrics(duration_ms);
+        try r.writeSummary(duration_ms);
+    }
+
+    /// Best effort: a failed metrics request is logged and named in the summary, nothing else.
+    fn sendMetrics(r: *Run, duration_ms: i64) !void {
+        const cfg = r.cfg orelse return;
+        const m = cfg.metrics orelse return;
+        if (r.opts.dry_run) {
+            r.summary.metrics = .skipped;
+            return;
+        }
+        const ru = resourceUsage();
+        const text = try metrics.render(r.arena, .{
+            .job = m.job,
+            .store_id = cfg.store_id,
+            .now = r.now,
+            .success = r.summary.result == .ok,
+            .last_success = r.last_success,
+            .failures = r.summary.failures orelse 0,
+            .outcome = r.outcome,
+            .pushed = r.summary.push == .sent,
+            .duration_ms = duration_ms,
+            .cpu_ms = ru.cpu_ms,
+            .maxrss_kib = ru.maxrss_kib,
+        });
+        var client: std.http.Client = .{ .allocator = r.gpa, .io = r.io };
+        defer client.deinit();
+        var status: u16 = 0;
+        metrics.send(&client, m.url, user_agent, text, &status) catch |err| {
+            r.summary.metrics = .failed;
+            if (err == error.HttpStatus)
+                try r.out.print("error: metrics: HTTP {d}\n", .{status})
+            else
+                try r.out.print("error: metrics: {t}\n", .{err});
+            return;
+        };
+        r.summary.metrics = .sent;
     }
 
     fn checkOnce(r: *Run) !u8 {
         const now = std.Io.Clock.real.now(r.io).toSeconds();
+        r.now = now;
         try writeTimestamp(r.out, now);
         try r.out.print(" lagerkoll {s}{s}\n", .{ build_options.version, if (r.opts.dry_run) " --dry-run" else "" });
 
@@ -152,6 +203,7 @@ const Run = struct {
             },
             error.OutOfMemory => return err,
         };
+        r.cfg = cfg;
         const previous = state_file.load(r.arena, r.io, r.opts.state_path) catch |err| {
             // A broken state file needs a look; overwriting it would hide that.
             try r.out.print("error: state {s}: {t}\n", .{ r.opts.state_path, err });
@@ -159,6 +211,7 @@ const Run = struct {
             return 1;
         };
         try writeState(r.out, previous);
+        if (previous) |p| r.last_success = p.last_success_unix;
 
         var sender: ?Sender = null;
         if (!r.opts.dry_run) {
@@ -184,6 +237,7 @@ const Run = struct {
         };
         const outcome = try check.evaluate(r.arena, cfg.items, observations, previous);
         try report(r.out, cfg, outcome);
+        r.outcome = outcome;
         r.summary.available = outcome.availableCount();
         r.summary.total = outcome.results.len;
         for (outcome.results) |res| {
@@ -221,6 +275,7 @@ const Run = struct {
         // A failed recovery push is tried again next time.
         if (was_warned) next.failure_warned = if (r.send(&client, s, check.recovery_message)) |_| false else |_| true;
         r.summary.failures = 0;
+        r.last_success = now;
         try r.saveState(next);
         return 0;
     }
@@ -294,18 +349,18 @@ const Run = struct {
         try r.out.print(line, .{ st.items.len, st.consecutive_failures });
     }
 
-    fn writeSummary(r: *Run, started: std.Io.Timestamp) !void {
+    fn writeSummary(r: *Run, duration_ms: i64) !void {
         const sum = r.summary;
-        const elapsed = started.durationTo(std.Io.Clock.awake.now(r.io));
         try r.out.print("summary result={t} push={t}", .{ sum.result, sum.push });
         if (sum.ntfy_id) |id| try r.out.print(" ntfy_id={s}", .{id});
         if (sum.err) |e| try r.out.print(" error={s}", .{e});
         if (sum.available) |a| try r.out.print(" available={d}/{d}", .{ a, sum.total.? });
         try r.out.print(" new_available={d} new_restock={d}", .{ sum.new_available, sum.new_restock });
         if (sum.failures) |f| try r.out.print(" failures={d}", .{f});
+        if (sum.metrics != .off) try r.out.print(" metrics={t}", .{sum.metrics});
         const ru = resourceUsage();
         try r.out.print(" duration_ms={d} cpu_ms={d} maxrss_kib={d}\n", .{
-            @divTrunc(elapsed.toNanoseconds(), std.time.ns_per_ms),
+            duration_ms,
             ru.cpu_ms,
             ru.maxrss_kib,
         });
@@ -379,6 +434,7 @@ test {
     _ = check;
     _ = state_file;
     _ = ntfy;
+    _ = metrics;
 }
 
 test "parseArgs" {

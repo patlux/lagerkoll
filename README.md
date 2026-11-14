@@ -114,6 +114,8 @@ so your list, your state and your credentials stay local.
 | `ntfy.url` | `https://` server root, e.g. `https://ntfy.sh` or your own server |
 | `ntfy.topic` | Topic for the pushes |
 | `ntfy.credentials_file` | Path to a file that holds `user:password` or an ntfy access token `tk_…` |
+| `metrics.url` | Optional: `http(s)://` endpoint that takes the Prometheus text format, see [Metrics](#metrics) |
+| `metrics.job` | Optional, default `lagerkoll`: value of the `job` label |
 | `client_id`, `api_url` | Optional; default to the website's client id and `https://api.ingka.ikea.com` |
 
 The `ntfy` section is needed for real runs only. lagerkoll refuses a credentials file that group
@@ -145,6 +147,7 @@ summary result=ok push=sent ntfy_id=hR3x9 available=21/22 new_available=1 new_re
 | `available` | articles with the needed quantity / articles on the list |
 | `new_available`, `new_restock` | articles that became available / got a delivery announced in this run |
 | `failures` | failed runs in a row after this run |
+| `metrics` | `sent`, `failed`, `skipped` (dry run); absent without a `metrics` section |
 | `duration_ms`, `cpu_ms`, `maxrss_kib` | wall time, CPU time and peak memory of the run |
 
 **Exit codes.** `0` checked (and pushed if needed), `1` failed (config, state, IKEA or ntfy; the
@@ -212,6 +215,32 @@ make image-publish IMAGE_REPOSITORY=registry.example.org/lagerkoll   # released 
 tree and CA bundle give the same bytes. `image-publish` runs only on a clean `main` whose version
 has a `CHANGELOG.md` section, and it never overwrites an existing tag.
 
+## Metrics
+
+A scheduler's logs usually last hours or days, and nobody notices a job that silently stops.
+With a `metrics` section, lagerkoll POSTs a few gauges in the Prometheus text format after every
+run, also after a failed one. It sends them without timestamps, so they work with VictoriaMetrics
+(`…/api/v1/import/prometheus`), a Prometheus Pushgateway (`…/metrics/job/lagerkoll`) and other
+receivers of the format. A failed metrics request is logged and does not fail the run.
+
+```json
+"metrics": { "url": "http://victoriametrics.example:8428/api/v1/import/prometheus" }
+```
+
+| Metric | Meaning |
+| --- | --- |
+| `lagerkoll_last_run_timestamp_seconds` | Unix time of the run |
+| `lagerkoll_last_success_timestamp_seconds` | Unix time of the last successful run (0 if none) |
+| `lagerkoll_run_success`, `lagerkoll_consecutive_failures` | result of this run, failed runs in a row |
+| `lagerkoll_push_sent` | 1 if this run sent a push |
+| `lagerkoll_articles`, `lagerkoll_articles_available` | articles on the list / with the needed quantity |
+| `lagerkoll_article_quantity{item_no,name}`, `lagerkoll_article_needed{item_no,name}` | stock and need per article |
+| `lagerkoll_run_duration_seconds`, `lagerkoll_run_cpu_seconds`, `lagerkoll_run_max_rss_bytes` | resources of the run |
+
+Every series carries `job` and `store` labels. An alert on
+`time() - max_over_time(lagerkoll_last_success_timestamp_seconds[3h]) > 7200` notices both failing
+runs and runs that stopped altogether.
+
 ## How it works
 
 One request per run, for all articles of the list:
@@ -241,6 +270,7 @@ compares with the last run and publishes at most one message to ntfy (JSON publi
 | `src/check.zig` | The rules: status per article, what changed, the push text (pure, no I/O) |
 | `src/state.zig` | Loading and atomically saving the state |
 | `src/ntfy.zig` | Credentials file and publishing |
+| `src/metrics.zig` | Optional run metrics in the Prometheus text format |
 
 ### Limitations
 

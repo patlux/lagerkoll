@@ -26,6 +26,13 @@ pub const Ntfy = struct {
     credentials_file: []const u8,
 };
 
+pub const Metrics = struct {
+    /// `http(s)://…` import endpoint, e.g. VictoriaMetrics `…/api/v1/import/prometheus`.
+    url: []const u8,
+    /// Value of the `job` label.
+    job: []const u8 = "lagerkoll",
+};
+
 pub const Config = struct {
     /// IKEA's store number (README: "Finding the store number").
     store_id: []const u8,
@@ -37,6 +44,8 @@ pub const Config = struct {
     api_url: []const u8 = default_api_url,
     /// Required for real runs; `--dry-run` works without it.
     ntfy: ?Ntfy = null,
+    /// Optional: run metrics after every run.
+    metrics: ?Metrics = null,
     items: []const Item,
 };
 
@@ -104,6 +113,17 @@ pub fn parse(arena: std.mem.Allocator, source: []const u8, problem: *[]const u8)
     }
     cfg.items = items;
 
+    if (cfg.metrics) |m| {
+        const http = std.mem.startsWith(u8, m.url, "http://") or std.mem.startsWith(u8, m.url, "https://");
+        if (!http or std.mem.findAny(u8, m.url, "@ #") != null) {
+            problem.* = "metrics.url must be an http(s):// URL without credentials";
+            return error.InvalidConfig;
+        }
+        if (m.job.len == 0 or m.job.len > 64 or !isToken(m.job)) {
+            problem.* = "metrics.job must be 1 to 64 letters, digits, '-' or '_'";
+            return error.InvalidConfig;
+        }
+    }
     if (cfg.ntfy) |*ntfy| {
         ntfy.url = httpsRoot(ntfy.url) orelse {
             problem.* = "ntfy.url must be an https:// server root, e.g. https://ntfy.example.org";
@@ -225,6 +245,12 @@ test "parse rejects bad entries with a reason" {
         .{ .json =
         \\{"store_id":"326","store_name":"F","market":"DE",
         ++ one_item, .needle = "market" },
+        .{ .json =
+        \\{"store_id":"326","store_name":"F","metrics":{"url":"ftp://x"},
+        ++ one_item, .needle = "metrics.url" },
+        .{ .json =
+        \\{"store_id":"326","store_name":"F","metrics":{"url":"http://x/a","job":"a b"},
+        ++ one_item, .needle = "metrics.job" },
         .{ .json = "{\"store_id\":\"326\"", .needle = "not a valid config" },
     };
     for (cases) |case| {
