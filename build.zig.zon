@@ -1,6 +1,6 @@
 .{
     .name = .lagerkoll,
-    .version = "0.3.0",
+    .version = "0.4.0",
     .dependencies = .{},
     .minimum_zig_version = "0.17.1",
     .fingerprint = 0xf7c56cd107cf4b2b,
