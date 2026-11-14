@@ -3,6 +3,12 @@
 Versions follow SemVer. Entries come from the Markdown changesets in `.changeset/`.
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the local release workflow.
 
+## 0.4.1 - 2026-11-14
+
+### Fixed
+
+- Send the metrics with Connection: close, so a receiver that answers 204 and keeps the connection (VictoriaMetrics) no longer holds the run for a minute; end a run that takes longer than --timeout seconds (default 120), and flush the log after every step.
+
 ## 0.4.0 - 2026-11-14
 
 ### Added
