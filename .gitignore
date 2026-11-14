@@ -1,0 +1,12 @@
+.zig-cache/
+zig-out/
+zig-pkg/
+.DS_Store
+*.log
+/state/
+__pycache__/
+# Your lists, state and credentials stay out of the repository.
+/lists/
+/*.json
+!/config.example.json
+*.state.json

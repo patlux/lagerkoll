@@ -1,0 +1,6 @@
+[settings]
+lockfile = true
+
+[tools]
+zig = "0.17.1"
+"github:rockorager/ziglint" = "0.8.1"

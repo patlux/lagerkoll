@@ -1,0 +1,284 @@
+{
+ "availabilities": [
+  {
+   "availableForCashCarry": false,
+   "availableForClickCollect": false,
+   "buyingOption": {
+    "cashCarry": {
+     "active": true,
+     "availability": {
+      "probability": {
+       "thisDay": {
+        "colour": {
+         "rgbDec": "224,7,81",
+         "rgbHex": "#E00751",
+         "token": "colour-negative"
+        },
+        "messageType": "OUT_OF_STOCK"
+       },
+       "updateDateTime": "2026-11-14T17:27:14.000Z"
+      },
+      "quantity": 0,
+      "restocks": [
+       {
+        "earliestDate": "2026-11-19",
+        "latestDate": "2026-11-26",
+        "quantity": 72,
+        "reliability": "HIGH",
+        "type": "DELIVERY",
+        "updateDateTime": "2026-11-14T09:41:40.393Z"
+       }
+      ],
+      "updateDateTime": "2026-11-14T17:27:14.000Z"
+     },
+     "eligibleForStockNotification": true,
+     "range": {
+      "inRange": true
+     },
+     "tags": [
+      "CUSTOMER_PICKUP"
+     ],
+     "unitOfMeasure": "PIECE",
+     "updateDateTime": "2026-11-14T17:27:14.000Z"
+    },
+    "clickCollect": {
+     "active": true,
+     "range": {
+      "inRange": true
+     }
+    },
+    "homeDelivery": {
+     "range": {
+      "inRange": true
+     },
+     "updateDateTime": "2025-10-15T02:42:30.000Z"
+    }
+   },
+   "classUnitKey": {
+    "classUnitCode": "326",
+    "classUnitType": "STO"
+   },
+   "itemKey": {
+    "itemNo": "30630088",
+    "itemType": "ART"
+   }
+  },
+  {
+   "availableForCashCarry": false,
+   "availableForClickCollect": false,
+   "buyingOption": {
+    "cashCarry": {
+     "active": true,
+     "availability": {
+      "probability": {
+       "thisDay": {
+        "colour": {
+         "rgbDec": "224,7,81",
+         "rgbHex": "#E00751",
+         "token": "colour-negative"
+        },
+        "messageType": "OUT_OF_STOCK"
+       },
+       "updateDateTime": "2026-11-13T17:34:35.000Z"
+      },
+      "quantity": 0,
+      "updateDateTime": "2026-11-13T17:34:35.000Z"
+     },
+     "eligibleForStockNotification": true,
+     "range": {
+      "inRange": true
+     },
+     "tags": [
+      "CUSTOMER_PICKUP"
+     ],
+     "unitOfMeasure": "PIECE",
+     "updateDateTime": "2026-11-13T17:34:35.000Z"
+    },
+    "clickCollect": {
+     "active": true,
+     "range": {
+      "inRange": true
+     }
+    },
+    "homeDelivery": {
+     "range": {
+      "inRange": true
+     },
+     "updateDateTime": "2024-04-11T02:38:45.000Z"
+    }
+   },
+   "classUnitKey": {
+    "classUnitCode": "326",
+    "classUnitType": "STO"
+   },
+   "itemKey": {
+    "itemNo": "70589416",
+    "itemType": "ART"
+   }
+  },
+  {
+   "availableForCashCarry": true,
+   "availableForClickCollect": true,
+   "buyingOption": {
+    "cashCarry": {
+     "active": true,
+     "availability": {
+      "probability": {
+       "thisDay": {
+        "colour": {
+         "rgbDec": "10,138,0",
+         "rgbHex": "#0A8A00",
+         "token": "colour-positive"
+        },
+        "messageType": "HIGH_IN_STOCK"
+       },
+       "updateDateTime": "2026-11-14T18:04:03.000Z"
+      },
+      "quantity": 174,
+      "updateDateTime": "2026-11-14T18:04:03.000Z"
+     },
+     "eligibleForStockNotification": false,
+     "range": {
+      "inRange": true
+     },
+     "tags": [
+      "CUSTOMER_PICKUP"
+     ],
+     "unitOfMeasure": "PIECE",
+     "updateDateTime": "2026-11-14T18:04:03.000Z"
+    },
+    "clickCollect": {
+     "active": true,
+     "range": {
+      "inRange": true
+     }
+    },
+    "homeDelivery": {
+     "range": {
+      "inRange": true
+     },
+     "updateDateTime": "2026-10-30T06:33:12.486Z"
+    }
+   },
+   "classUnitKey": {
+    "classUnitCode": "326",
+    "classUnitType": "STO"
+   },
+   "itemKey": {
+    "itemNo": "80458207",
+    "itemType": "ART"
+   },
+   "salesLimitation": {
+    "maxQuantity": 99
+   }
+  },
+  {
+   "availableForCashCarry": true,
+   "availableForClickCollect": true,
+   "buyingOption": {
+    "cashCarry": {
+     "active": true,
+     "availability": {
+      "probability": {
+       "thisDay": {
+        "colour": {
+         "rgbDec": "10,138,0",
+         "rgbHex": "#0A8A00",
+         "token": "colour-positive"
+        },
+        "messageType": "HIGH_IN_STOCK"
+       },
+       "updateDateTime": "2026-11-14T18:04:24.000Z"
+      },
+      "quantity": 266,
+      "updateDateTime": "2026-11-14T18:04:24.000Z"
+     },
+     "eligibleForStockNotification": false,
+     "range": {
+      "inRange": false
+     },
+     "tags": [
+      "CUSTOMER_PICKUP"
+     ],
+     "unitOfMeasure": "PIECE",
+     "updateDateTime": "2026-11-14T18:04:24.000Z"
+    },
+    "clickCollect": {
+     "active": true,
+     "range": {
+      "inRange": true
+     }
+    },
+    "homeDelivery": {
+     "range": {
+      "inRange": true
+     },
+     "updateDateTime": "2026-02-13T02:44:59.000Z"
+    }
+   },
+   "classUnitKey": {
+    "classUnitCode": "326",
+    "classUnitType": "STO"
+   },
+   "itemKey": {
+    "itemNo": "10604165",
+    "itemType": "ART"
+   }
+  },
+  {
+   "availableForCashCarry": false,
+   "availableForClickCollect": false,
+   "buyingOption": {
+    "cashCarry": {
+     "active": true,
+     "availability": {
+      "probability": {
+       "thisDay": {
+        "colour": {
+         "rgbDec": "224,7,81",
+         "rgbHex": "#E00751",
+         "token": "colour-negative"
+        },
+        "messageType": "OUT_OF_STOCK"
+       },
+       "updateDateTime": "2026-11-14T17:27:14.000Z"
+      },
+      "quantity": 56,
+      "updateDateTime": "2026-11-14T17:27:14.000Z"
+     },
+     "eligibleForStockNotification": true,
+     "range": {
+      "inRange": true
+     },
+     "tags": [
+      "CUSTOMER_PICKUP"
+     ],
+     "unitOfMeasure": "PIECE",
+     "updateDateTime": "2026-11-14T17:27:14.000Z"
+    },
+    "clickCollect": {
+     "active": true,
+     "range": {
+      "inRange": true
+     }
+    },
+    "homeDelivery": {
+     "range": {
+      "inRange": true
+     },
+     "updateDateTime": "2025-10-15T02:42:30.000Z"
+    }
+   },
+   "classUnitKey": {
+    "classUnitCode": "063",
+    "classUnitType": "STO"
+   },
+   "itemKey": {
+    "itemNo": "30630088",
+    "itemType": "ART"
+   }
+  }
+ ],
+ "timestamp": "2026-11-14T18:09:30.367Z",
+ "traceId": "fixture"
+}

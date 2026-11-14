@@ -1,0 +1,14 @@
+{
+  "store_id": "123",
+  "store_name": "Musterstadt",
+  "market": "de/de",
+  "ntfy": {
+    "url": "https://ntfy.example.org",
+    "topic": "ikea",
+    "credentials_file": "/run/secrets/ikea-checker-ntfy"
+  },
+  "items": [
+    { "item_no": "123.456.78", "name": "Beispielartikel", "quantity": 2 },
+    { "item_no": "87654321", "name": "Zweiter Artikel", "quantity": 1 }
+  ]
+}
