@@ -18,6 +18,8 @@ pub const Observation = struct {
     quantity: ?u32,
     /// The earliest announced delivery, if any.
     restock: ?Restock,
+    /// When IKEA last updated the figure (`2026-11-14T17:48:09.000Z`), if the answer says.
+    updated: ?[]const u8 = null,
 };
 
 /// The request URL for all items of the list in one store.
@@ -87,6 +89,7 @@ const Wire = struct {
     const Stock = struct {
         quantity: ?i64 = null,
         restocks: ?[]const WireRestock = null,
+        updateDateTime: ?[]const u8 = null,
     };
     const WireRestock = struct {
         earliestDate: []const u8,
@@ -123,6 +126,7 @@ fn observe(a: Wire.Availability) ParseError!Observation {
     const cc = (a.buyingOption orelse return obs).cashCarry orelse return obs;
     const in_range = if (cc.range) |r| r.inRange else false;
     const stock = cc.availability orelse return obs;
+    obs.updated = stock.updateDateTime;
     if (!in_range) return obs;
     if (stock.quantity) |q| obs.quantity = std.math.cast(u32, q) orelse return error.InvalidResponse;
     if (stock.restocks) |restocks| for (restocks) |r| {
@@ -168,6 +172,7 @@ test "parseAvailability reads stock, range and the earliest restock of the store
     try testing.expectEqual(@as(?u32, 0), obs[0].quantity);
     try testing.expectEqualStrings("2026-11-19", obs[0].restock.?.earliest);
     try testing.expectEqualStrings("2026-11-26", obs[0].restock.?.latest);
+    try testing.expectEqualStrings("2026-11-14T17:27:14.000Z", obs[0].updated.?);
 
     try testing.expectEqualStrings("70589416", obs[1].item_no);
     try testing.expectEqual(@as(?u32, 0), obs[1].quantity);

@@ -63,7 +63,8 @@ pub fn body(arena: std.mem.Allocator, topic: []const u8, msg: check.Message) err
 
 pub const PublishError = error{HttpStatus} || std.http.Client.FetchError || error{OutOfMemory};
 
-/// POSTs one message. Success means ntfy accepted it, not that a phone shows it.
+/// POSTs one message and returns ntfy's message id (null if the answer has none). Success means
+/// ntfy accepted it, not that a phone shows it.
 pub fn publish(
     client: *std.http.Client,
     arena: std.mem.Allocator,
@@ -73,8 +74,9 @@ pub fn publish(
     topic: []const u8,
     msg: check.Message,
     status_out: *u16,
-) PublishError!void {
+) PublishError!?[]const u8 {
     const payload = try body(arena, topic, msg);
+    var answer: std.Io.Writer.Allocating = .init(arena);
     const url = try arena.print("{s}/", .{server});
     const result = try client.fetch(.{
         .location = .{ .url = url },
@@ -89,9 +91,24 @@ pub fn publish(
             .content_type = .{ .override = "application/json" },
             .user_agent = .{ .override = user_agent },
         },
+        .response_writer = &answer.writer,
     });
     status_out.* = @backingInt(result.status);
     if (result.status != .ok) return error.HttpStatus;
+    return messageId(arena, answer.written());
+}
+
+/// The `id` of ntfy's answer, for the log; anything unexpected is no id, not an error.
+pub fn messageId(arena: std.mem.Allocator, answer: []const u8) ?[]const u8 {
+    const Answer = struct { id: ?[]const u8 = null };
+    const parsed = std.json.parseFromSliceLeaky(Answer, arena, answer, .{
+        .ignore_unknown_fields = true,
+        .allocate = .alloc_always,
+    }) catch return null;
+    const id = parsed.id orelse return null;
+    if (id.len == 0 or id.len > 64) return null;
+    for (id) |c| if (!std.ascii.isAlphanumeric(c)) return null;
+    return id;
 }
 
 const testing = std.testing;
@@ -128,6 +145,16 @@ test "loadAuthorization refuses a file others can read" {
     try testing.expectEqualStrings("Basic dTpw", try loadAuthorization(arena, io, private_path));
 
     try testing.expectError(error.FileNotFound, loadAuthorization(arena, io, "/nonexistent/lagerkoll-credentials"));
+}
+
+test "messageId takes a plain id and nothing else" {
+    var arena_state: std.heap.ArenaAllocator = .init(testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+    try testing.expectEqualStrings("hR3x9", messageId(arena, "{\"id\":\"hR3x9\",\"time\":1,\"event\":\"message\"}").?);
+    try testing.expect(messageId(arena, "{\"time\":1}") == null);
+    try testing.expect(messageId(arena, "{\"id\":\"a\\nb\"}") == null);
+    try testing.expect(messageId(arena, "not json") == null);
 }
 
 test "body is ntfy's JSON publish format" {
@@ -214,7 +241,7 @@ test "publish posts the JSON with the credentials to the server root" {
     };
     const result = publish(&client, arena, url, "Bearer tk_test", "lagerkoll/test", "ikea", msg, &status);
     thread.join();
-    try result;
+    try testing.expectEqualStrings("test", (try result).?);
 
     try testing.expect(!seen.failed);
     try testing.expectEqual(@as(u16, 200), status);

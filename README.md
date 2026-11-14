@@ -66,13 +66,15 @@ zig-out/bin/lagerkoll check --config config.json --state state.json --dry-run
 ```
 
 ```text
-2026-11-14T19:08:31Z lagerkoll 0.1.0 --dry-run
-IKEA Musterstadt (123): 1 von 2 verfügbar
-  fehlt  12345678        0/9  Flisberget Tür  (Nachlieferung 19.11.–26.11.)
+2026-11-14T20:15:33Z lagerkoll 0.3.0 --dry-run
+state: none, first run
+IKEA: HTTP 200, 2 of 2 articles in the answer, figures updated 2026-11-14T17:27:14.000Z to 2026-11-14T19:21:12.000Z
+IKEA Musterstadt (123): 1 of 2 available
+  out    12345678        0/9  Flisberget Tür  (delivery 19.11.–26.11.)
   ok     87654321       45/4  Översidan 46cm
-
-Push (nicht gesendet): IKEA Musterstadt: Überwachung aktiv
+push: dry run, not sent: IKEA Musterstadt: Überwachung aktiv
 …
+summary result=ok push=dry_run available=1/2 new_available=0 new_restock=0 duration_ms=242 cpu_ms=37 maxrss_kib=15040
 ```
 
 **5. Connect ntfy and run it on a schedule.** Add the `ntfy` section (see
@@ -123,8 +125,30 @@ announced. It also counts the failed checks in a row. It is written atomically w
 If a push fails, the run keeps the old states, so the next run finds the same change and tries
 again. A state file that does not parse stops the run instead of being overwritten.
 
+**Logs.** Every run writes its report to stdout, in order: a header with time and version, the
+state it starts from, IKEA's answer (HTTP status, how many articles came back, when IKEA last
+updated the figures), one line per article (`NEW: available`, `NEW: delivery announced` mark the
+changes), what was pushed (with ntfy's message id) and the saved state. Errors appear in the same
+stream as `error: …`. The last line is always a `summary` with `key=value` pairs, so a scheduler's
+log can be checked with one grep:
+
+```text
+summary result=ok push=sent ntfy_id=hR3x9 available=21/22 new_available=1 new_restock=0 failures=0 duration_ms=812 cpu_ms=41 maxrss_kib=15040
+```
+
+| Key | Meaning |
+| --- | --- |
+| `result` | `ok` or `failed` (same as the exit code) |
+| `push` | `none`, `sent`, `failed`, `dry_run` |
+| `ntfy_id` | ntfy's id of the message that was sent |
+| `error` | why the run failed: `config`, `state`, `credentials`, `ntfy`, or the error of the IKEA request |
+| `available` | articles with the needed quantity / articles on the list |
+| `new_available`, `new_restock` | articles that became available / got a delivery announced in this run |
+| `failures` | failed runs in a row after this run |
+| `duration_ms`, `cpu_ms`, `maxrss_kib` | wall time, CPU time and peak memory of the run |
+
 **Exit codes.** `0` checked (and pushed if needed), `1` failed (config, state, IKEA or ntfy; the
-reason goes to stderr), `2` usage.
+reason is in the log), `2` usage (the usage goes to stderr).
 
 ## Running it regularly
 
