@@ -150,6 +150,9 @@ summary result=ok push=sent ntfy_id=hR3x9 available=21/22 new_available=1 new_re
 | `metrics` | `sent`, `failed`, `skipped` (dry run); absent without a `metrics` section |
 | `duration_ms`, `cpu_ms`, `maxrss_kib` | wall time, CPU time and peak memory of the run |
 
+**Timeout.** `--timeout SECONDS` (default 120) ends a run that hangs, e.g. on a server that
+stops answering, so a scheduler that prevents overlapping runs is not blocked.
+
 **Exit codes.** `0` checked (and pushed if needed), `1` failed (config, state, IKEA or ntfy; the
 reason is in the log), `2` usage (the usage goes to stderr).
 
@@ -284,6 +287,11 @@ compares with the last run and publishes at most one message to ntfy (JSON publi
   data is public; for ntfy, prefer a server you reach over a private network.
 - `std.http.Client` 0.17.1 never sends `privileged_headers`. lagerkoll sends the credentials in
   the ordinary `Authorization` header instead, with redirects switched off.
+- `std.http.Client` 0.17.1 has no timeouts, and it reads the body of a `204 No Content` without
+  `Content-Length` until the server closes the connection. lagerkoll ends a run that takes longer
+  than `--timeout` seconds (default 120) with exit code 1 and `summary result=failed error=timeout`,
+  and sends the metrics with `Connection: close`. A run that times out is not counted as a failure
+  in the state; the metrics (`lagerkoll_last_success_timestamp_seconds`) still show it.
 
 ## Development
 

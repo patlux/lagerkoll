@@ -104,6 +104,11 @@ pub fn send(
         .method = .POST,
         .payload = text,
         .redirect_behavior = .not_allowed,
+        // std.http.Client 0.17.1 reads the body of a 204 without Content-Length until the server
+        // closes the connection (`Response.reader` ignores the 204 rule that `receiveHead` knows).
+        // VictoriaMetrics answers 204 and keeps the connection, so a kept-alive request waits for
+        // its idle timeout (60 s). `Connection: close` makes the server end it at once.
+        .keep_alive = false,
         .headers = .{
             .content_type = .{ .override = "text/plain; version=0.0.4" },
             .user_agent = .{ .override = user_agent },
@@ -185,4 +190,56 @@ test "render of a failed run has no article samples" {
     const failures = "lagerkoll_consecutive_failures{job=\"lagerkoll\",store=\"326\"} 3\n";
     try testing.expect(std.mem.find(u8, text, failures) != null);
     try testing.expect(std.mem.find(u8, text, "lagerkoll_article") == null);
+}
+
+fn serve204(io: std.Io, server: *std.Io.net.Server, failed: *bool) void {
+    serve204Inner(io, server) catch {
+        failed.* = true;
+    };
+}
+
+/// Answers like VictoriaMetrics: 204 without Content-Length, and keeps a kept-alive connection
+/// open for 3 s.
+fn serve204Inner(io: std.Io, server: *std.Io.net.Server) !void {
+    const stream = try server.accept(io);
+    defer stream.close(io);
+    var read_buf: [8192]u8 = undefined;
+    var write_buf: [1024]u8 = undefined;
+    var reader = stream.reader(io, &read_buf);
+    var writer = stream.writer(io, &write_buf);
+    var http_server = std.http.Server.init(&reader.interface, &writer.interface);
+    var request = try http_server.receiveHead();
+    const keep_alive = request.head.keep_alive;
+    var body_buf: [1024]u8 = undefined;
+    const body_reader = try request.readerExpectContinue(&body_buf);
+    _ = try body_reader.discardRemaining();
+    try writer.interface.writeAll("HTTP/1.1 204 No Content\r\n\r\n");
+    try writer.interface.flush();
+    if (keep_alive) try io.sleep(.fromSeconds(3), .awake);
+}
+
+test "send does not wait for a server that keeps the connection after a 204" {
+    const io = testing.io;
+    var arena_state: std.heap.ArenaAllocator = .init(testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+
+    const address: std.Io.net.IpAddress = .{ .ip4 = .loopback(0) };
+    var server = try address.listen(io, .{});
+    defer server.deinit(io);
+    const url = try arena.print("http://127.0.0.1:{d}/api/v1/import/prometheus", .{server.socket.address.getPort()});
+
+    var failed = false;
+    const thread = try std.Thread.spawn(.{}, serve204, .{ io, &server, &failed });
+    var client: std.http.Client = .{ .allocator = testing.allocator, .io = io };
+    defer client.deinit();
+    var status: u16 = 0;
+    const started = std.Io.Clock.awake.now(io);
+    const result = send(&client, url, "lagerkoll/test", "lagerkoll_up 1\n", &status);
+    const elapsed = started.durationTo(std.Io.Clock.awake.now(io));
+    thread.join();
+    try result;
+    try testing.expect(!failed);
+    try testing.expectEqual(@as(u16, 204), status);
+    try testing.expect(elapsed.toMilliseconds() < 2000);
 }

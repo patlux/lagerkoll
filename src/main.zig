@@ -17,12 +17,14 @@ pub const failure_threshold = 3;
 const user_agent = "lagerkoll/" ++ build_options.version;
 
 const usage =
-    \\Usage: lagerkoll check --config FILE --state FILE [--dry-run]
+    \\Usage: lagerkoll check --config FILE --state FILE [--dry-run] [--timeout SECONDS]
     \\       lagerkoll --version
     \\
     \\check      Ask IKEA for the stock of the listed articles in one store, compare it with
     \\           the last run (the state file) and push what changed through ntfy.
     \\--dry-run  Print the report and the push it would send; send nothing, write no state.
+    \\--timeout  End a run that takes longer with exit code 1 (default 120; requests have no
+    \\           timeout of their own).
     \\
 ;
 
@@ -30,7 +32,10 @@ const CheckOptions = struct {
     config_path: []const u8,
     state_path: []const u8,
     dry_run: bool,
+    timeout_s: u32 = default_timeout_s,
 };
+
+const default_timeout_s = 120;
 
 const Command = union(enum) {
     check: CheckOptions,
@@ -49,6 +54,11 @@ fn parseArgs(args: []const []const u8) error{Usage}!Command {
         const arg = args[i];
         if (std.mem.eql(u8, arg, "--dry-run")) {
             opts.dry_run = true;
+        } else if (std.mem.eql(u8, arg, "--timeout")) {
+            if (i + 1 >= args.len) return error.Usage;
+            i += 1;
+            opts.timeout_s = std.fmt.parseInt(u32, args[i], 10) catch return error.Usage;
+            if (opts.timeout_s == 0 or opts.timeout_s > 3600) return error.Usage;
         } else if (std.mem.eql(u8, arg, "--config") or std.mem.eql(u8, arg, "--state")) {
             if (i + 1 >= args.len or args[i + 1].len == 0) return error.Usage;
             i += 1;
@@ -87,10 +97,26 @@ pub fn main(init: std.process.Init) !u8 {
             return 0;
         },
         .check => |opts| {
+            // std.http.Client has no timeouts: a server that stops answering would hold the run
+            // (and a scheduler that prevents overlaps) forever.
+            const watchdog = try std.Thread.spawn(.{}, abortAfter, .{ io, opts.timeout_s });
+            watchdog.detach();
             var ctx: Run = .{ .gpa = init.gpa, .arena = arena, .io = io, .opts = opts, .out = out };
             return ctx.run();
         },
     }
+}
+
+/// Ends the process when the run takes longer than `seconds`. Writes straight to stdout; what
+/// the run had not flushed yet is lost.
+fn abortAfter(io: std.Io, seconds: u32) void {
+    io.sleep(.fromSeconds(seconds), .awake) catch return;
+    var buf: [160]u8 = undefined;
+    const text = "error: run took longer than {d} s, aborted\nsummary result=failed error=timeout\n";
+    const line = std.mem.print(&buf, text, .{seconds}) catch unreachable;
+    // Nothing is left to report a failed write to; the exit code still says it.
+    std.Io.File.stdout().writeStreamingAll(io, line) catch std.process.exit(1);
+    std.process.exit(1);
 }
 
 const Sender = struct {
@@ -142,8 +168,10 @@ const Run = struct {
         if (code == 0) r.summary.result = .ok;
         const elapsed = started.durationTo(std.Io.Clock.awake.now(r.io));
         const duration_ms: i64 = @intCast(@divTrunc(elapsed.toNanoseconds(), std.time.ns_per_ms));
+        try r.out.flush();
         try r.sendMetrics(duration_ms);
         try r.writeSummary(duration_ms);
+        try r.out.flush();
     }
 
     /// Best effort: a failed metrics request is logged and named in the summary, nothing else.
@@ -187,6 +215,7 @@ const Run = struct {
         r.now = now;
         try writeTimestamp(r.out, now);
         try r.out.print(" lagerkoll {s}{s}\n", .{ build_options.version, if (r.opts.dry_run) " --dry-run" else "" });
+        try r.out.flush();
 
         const cwd = std.Io.Dir.cwd();
         const cfg_text = cwd.readFileAlloc(r.io, r.opts.config_path, r.arena, .limited(1 << 20)) catch |err| {
@@ -211,6 +240,7 @@ const Run = struct {
             return 1;
         };
         try writeState(r.out, previous);
+        try r.out.flush();
         if (previous) |p| r.last_success = p.last_success_unix;
 
         var sender: ?Sender = null;
@@ -237,6 +267,7 @@ const Run = struct {
         };
         const outcome = try check.evaluate(r.arena, cfg.items, observations, previous);
         try report(r.out, cfg, outcome);
+        try r.out.flush();
         r.outcome = outcome;
         r.summary.available = outcome.availableCount();
         r.summary.total = outcome.results.len;
@@ -442,6 +473,9 @@ test "parseArgs" {
     try testing.expectEqualStrings("c.json", ok.check.config_path);
     try testing.expectEqualStrings("s.json", ok.check.state_path);
     try testing.expect(ok.check.dry_run);
+    try testing.expectEqual(@as(u32, default_timeout_s), ok.check.timeout_s);
+    const t = try parseArgs(&.{ "check", "--config", "c", "--state", "s", "--timeout", "30" });
+    try testing.expectEqual(@as(u32, 30), t.check.timeout_s);
     try testing.expectEqual(Command.version, try parseArgs(&.{"--version"}));
     for ([_][]const []const u8{
         &.{},
@@ -450,6 +484,8 @@ test "parseArgs" {
         &.{ "check", "--config", "c.json", "--state" },
         &.{ "check", "--config", "c.json", "--state", "s.json", "--force" },
         &.{"status"},
+        &.{ "check", "--config", "c", "--state", "s", "--timeout", "0" },
+        &.{ "check", "--config", "c", "--state", "s", "--timeout", "x" },
     }) |bad| try testing.expectError(error.Usage, parseArgs(bad));
 }
 
